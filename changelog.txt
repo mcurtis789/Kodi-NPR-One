@@ -1,0 +1,3 @@
+CHANGELOG for KODI NPR One Plugin (xbmcnpr)
+
+0.0.1:  Initial release.  Tested on Kodi (18.2-RC1).

@@ -1,0 +1,17 @@
+= NPR on Kodi =
+***this is still a work in progress.***
+
+This addon will allow streaming of NPR news stations from NPR one.
+as a part of the changes of the API you must sign up for a NPR ONE
+presonal dev account(https://dev.npr.org/apply/). once done you can
+create an application with will provide you with a app id and token.
+
+you will need to update the npr.py promptauth section to include 
+the app id and secret
+def promptauth():
+    id = "nprone_trial"
+    secret = 'mysecretkey'
+	
+once this is done you can now log in and authorize your device for 
+streaming with the provided code(prints to the console currently working on 
+prompting the code in Kodi).
