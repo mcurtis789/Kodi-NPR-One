@@ -5,6 +5,7 @@ from __future__ import absolute_import
 #from future import standard_library
 #standard_library.install_aliases()
 import requests,json,re,os,ast,sys,time,datetime
+import xbmc,xbmcaddon,xbmcplugin,xbmcgui
 
 debug = 1
 configfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'npr.conf')
@@ -59,19 +60,21 @@ def deauth():
     os.remove(configfile)
     print('app deauthed')
 
-def poll(tokenEndpoint,tokenHeaders,tokenData):
-    tokenJson = requests.post(tokenEndpoint, headers=tokenHeaders, data = tokenData).json()
-    if 'access_token' in tokenJson:
-        config = fetchConfig()
-        config['token'] = tokenJson['access_token']
-        config['expires_in'] = tokenJson['expires_in']
-        config['refresh_token'] = tokenJson['refresh_token']
-        f=open(configfile,'w+')
-        f.write(str(config))
-        print('User logged in and stored locally')
-    else:
-        time.sleep(5)
-        poll(tokenEndpoint,tokenHeaders,tokenData)
+def poll(tokenEndpoint,tokenHeaders,tokenData,deviceCodeJson):
+    dialog = xbmcgui.Dialog()
+    if  dialog.ok("NPR One", "Do the following before pressing OK","Go to "+ deviceCodeJson['verification_uri']+" login and enter:",deviceCodeJson['user_code']):
+            tokenJson = requests.post(tokenEndpoint, headers=tokenHeaders, data = tokenData).json()
+            if 'access_token' in tokenJson:
+                config = fetchConfig()
+                config['token'] = tokenJson['access_token']
+                config['expires_in'] = tokenJson['expires_in']
+                config['refresh_token'] = tokenJson['refresh_token']
+                f=open(configfile,'w+')
+                f.write(str(config))
+                print('User logged in and stored locally')
+            else:
+                time.sleep(5)
+                poll(tokenEndpoint,tokenHeaders,tokenData,deviceCodeJson)
 
 def login():
     scope = 'identity.readonly identity.write listening.readonly listening.write localactivation'
@@ -87,7 +90,7 @@ def login():
             tokenData = {'client_id':config['id'],'client_secret':config['secret'],'code':deviceCodeJson['device_code'],'grant_type':'device_code'}
             print("Go to " + deviceCodeJson['verification_uri'] + " login and enter:")
             print(deviceCodeJson['user_code'])
-            poll(tokenEndpoint,headers,tokenData)
+            poll(tokenEndpoint,headers,tokenData,deviceCodeJson)
         else:
             auth()
     else:

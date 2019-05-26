@@ -1,4 +1,6 @@
 #
+#  Copyright 2012 (stieg)
+#
 #  This Program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation; either version 2, or (at your option)
@@ -23,13 +25,13 @@ from xml.etree.ElementTree import ElementTree
 
 __XBMC_Revision__ = xbmc.getInfoLabel('System.BuildVersion')
 __settings__      = xbmcaddon.Addon(id='plugin.audio.nprone')
-__home__ = __settings__.getAddonInfo('path')
+__home__          = __settings__.getAddonInfo('path')
 __language__      = __settings__.getLocalizedString
 __version__       = __settings__.getAddonInfo('version')
-__cwd__           = __settings__.getAddonInfo('path')
+__name__           = __settings__.getAddonInfo('name')
 __addonname__     = "NPR One - National Public Radio"
 __addonid__       = "plugin.audio.nprone"
-__author__        = "MCurtis"
+__author__        = "Mike Curtis"
 
 # Get the plugin url in plugin:// notation.
 _url = sys.argv[0]
@@ -111,14 +113,6 @@ def readAuth(path):
         config = ast.literal_eval(f.read())
         if "token" in config:
             return False
-def login():
-    npr.auth( )
-    npr.login()
-
-def appid():
-    id = "nprone_trial_iuM7hQH3TsGe"
-    secret = 'hjsMnQzqgpKHo3hOGIkmBJn9Ftw321N3fOxaJYLR'
-    return id,secret
 
 def getstations(locations):
     location = locations.replace('%20',' ')
@@ -180,19 +174,34 @@ def main():
         xbmcplugin.endOfDirectory(_handle)
 
     else:
-        # Set plugin category. It is displayed in some skins as the name
-        # of the current section.
-        xbmcplugin.setPluginCategory(_handle, 'NPR')
-        # Set plugin content. It allows Kodi to select appropriate views
-        # for this type of content.
-        xbmcplugin.setContent(_handle, 'Music')
-        for key, value in __STATES.items():
-            u = _url + "?state=" +value
-            liz = xbmcgui.ListItem(value)
-            xbmcplugin.addDirectoryItem(_handle,
-                                  url = u, listitem = liz,
-                                  isFolder = True)
-        xbmcplugin.endOfDirectory(_handle)
+        dialog = xbmcgui.Dialog()
+        try:
+                data = ""
+                configfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'npr.conf')
+                with open(configfile, 'r') as file:
+                        data = file.read().replace('\n', '')
+                if 'token' in data:
+                        # Set plugin category. It is displayed in some skins as the name
+                        # of the current section.
+                        xbmcplugin.setPluginCategory(_handle, 'NPR')
+                        # Set plugin content. It allows Kodi to select appropriate views
+                        # for this type of content.
+                        xbmcplugin.setContent(_handle, 'Music')
+                        for key, value in __STATES.items():
+                                u = _url + "?state=" +value
+                                liz = xbmcgui.ListItem(value)
+                                xbmcplugin.addDirectoryItem(_handle,
+                                          url = u, listitem = liz,
+                                          isFolder = True)
+                        xbmcplugin.endOfDirectory(_handle)
+                else:
+                        npr.auth()
+                        npr.login()
+                        dialog.ok("NPR One", "All Done now relaunch the addon.")
+        except:
+                npr.auth()
+                npr.login()
+                dialog.ok("NPR One", "All Done now relaunch the addon.")
 
 # Enter here.
 main()
