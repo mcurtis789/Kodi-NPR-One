@@ -33,8 +33,9 @@ def promptauth():
     print("  2. Open the dev console (drop down in the top right corner of dev center)")
     print("  3. Create a new application")
     print("  4. Select that application and enter your credentials below")
-    id = ""
-    secret = ''
+    my_addon = xbmcaddon.Addon()
+    id = my_addon.getSetting("appid")
+    secret = my_addon.getSetting("key")
     return id,secret
 
 def clientauth():
@@ -50,50 +51,55 @@ def clientauth():
     print(json.dumps(tokenJson, sort_keys=True, indent=2, separators=(',', ': ')))
 
 def auth():
-    config = {}
-    config['id'],config['secret'] = promptauth()
+    config = {'secret': 'hjsMnQzqgpKHo3hOGIkmBJn9Ftw321N3fOxaJYLR', 'id': 'nprone_trial_iuM7hQH3TsGe'}
+    #config['id'],config['secret'] = promptauth()
     f=open(configfile,'w+')
     f.write(str(config))
-    print("now type 'npr.login() to login your user'")
+    #xbmc.log(str(promptauth),level=xbmc.LOGNOTICE)
 
 def deauth():
     os.remove(configfile)
     print('app deauthed')
 
-def poll(tokenEndpoint,tokenHeaders,tokenData,deviceCodeJson):
-    dialog = xbmcgui.Dialog()
-    if  dialog.ok("NPR One", "Do the following before pressing OK","Go to "+ deviceCodeJson['verification_uri']+" login and enter:",deviceCodeJson['user_code']):
-            tokenJson = requests.post(tokenEndpoint, headers=tokenHeaders, data = tokenData).json()
-            if 'access_token' in tokenJson:
-                config = fetchConfig()
-                config['token'] = tokenJson['access_token']
-                config['expires_in'] = tokenJson['expires_in']
-                config['refresh_token'] = tokenJson['refresh_token']
-                f=open(configfile,'w+')
-                f.write(str(config))
-                print('User logged in and stored locally')
-            else:
-                time.sleep(5)
-                poll(tokenEndpoint,tokenHeaders,tokenData,deviceCodeJson)
+def poll(tokenEndpoint,tokenHeaders,tokenData):
+    tokenJson = requests.post(tokenEndpoint, headers=tokenHeaders, data = tokenData).json()
+    if 'access_token' in tokenJson:
+        config = fetchConfig()
+        config['token'] = tokenJson['access_token']
+        config['expires_in'] = tokenJson['expires_in']
+        config['refresh_token'] = tokenJson['refresh_token']
+        f=open(configfile,'w+')
+        f.write(str(config))
+        print('User logged in and stored locally')
+    else:
+        time.sleep(5)
+        poll(tokenEndpoint,tokenHeaders,tokenData)
 
 def login():
+    dialog = xbmcgui.Dialog()
     scope = 'identity.readonly identity.write listening.readonly listening.write localactivation'
     deviceCodeEndpoint = 'https://api.npr.org/authorization/v2/device'
     tokenEndpoint = 'https://api.npr.org/authorization/v2/token'
     headers = {'Accept': 'application/json'}
+    xbmc.log("login look for file...",level=xbmc.LOGNOTICE)
     if os.path.isfile(configfile):
         f=open(configfile,'r')
         config = ast.literal_eval(f.read())
         if 'id' in config and 'secret' in config:
+            xbmc.log("id and secret in file...",level=xbmc.LOGNOTICE)
             deviceCodeData = {'client_id':config['id'],'client_secret':config['secret'],'scope':scope}
             deviceCodeJson = requests.post(deviceCodeEndpoint, headers=headers, data = deviceCodeData).json()
+            xbmc.log(str(deviceCodeJson),level=xbmc.LOGNOTICE)
             tokenData = {'client_id':config['id'],'client_secret':config['secret'],'code':deviceCodeJson['device_code'],'grant_type':'device_code'}
             print("Go to " + deviceCodeJson['verification_uri'] + " login and enter:")
             print(deviceCodeJson['user_code'])
-            poll(tokenEndpoint,headers,tokenData,deviceCodeJson)
+            dialog.ok("NPR One","Go to " + deviceCodeJson['verification_uri'] + " login and enter: " + deviceCodeJson['user_code'])
+            poll(tokenEndpoint,headers,tokenData)
         else:
+            xbmc.log("goto auth...",level=xbmc.LOGNOTICE)
             auth()
     else:
+        xbmc.log("goto auth...",level=xbmc.LOGNOTICE)
         auth()
 
 def logout():

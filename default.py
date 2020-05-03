@@ -1,5 +1,5 @@
 #
-#  Copyright 2012 (stieg)
+#  Copyright 2019 (Curtis)
 #
 #  This Program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -19,88 +19,110 @@
 
 
 import xbmc,xbmcaddon,xbmcplugin,xbmcgui
-import csv, urllib2, urlparse, os, sys, re
+import csv, urllib2, os, sys, re
 import npr
-from xml.etree.ElementTree import ElementTree
+from requests.utils import unquote
+from requests.utils import quote
 
 __XBMC_Revision__ = xbmc.getInfoLabel('System.BuildVersion')
 __settings__      = xbmcaddon.Addon(id='plugin.audio.nprone')
-__home__          = __settings__.getAddonInfo('path')
+__addondir__      = __settings__.getAddonInfo('path') 
 __language__      = __settings__.getLocalizedString
 __version__       = __settings__.getAddonInfo('version')
-__name__           = __settings__.getAddonInfo('name')
+__name__          = __settings__.getAddonInfo('name')
 __addonname__     = "NPR One - National Public Radio"
 __addonid__       = "plugin.audio.nprone"
 __author__        = "Mike Curtis"
 
-# Get the plugin url in plugin:// notation.
-_url = sys.argv[0]
+__url__ = sys.argv[0]
 # Get the plugin handle as an integer number.
-_handle = int(sys.argv[1])
-_stationsList = []
-_streamList = []
-_arg = sys.argv[2]
+__handle__ = int(sys.argv[1])
+__arg__ = sys.argv[2]
+__stationsList__ = []
+__streamList__ = []
+__podcastList__ = []
 
+_MAINMENU = [
+        'Live Radio',
+        'Podcasts'
+]
+_SAVEDPODCASTS = (
+        'Tink Desk Concerts',
+        'Planet Money',
+        'Detroit Today',
+        'Life Kit',
+        'Car Talk',
+        'Wait Wait...Don\'t Tell Me!',
+        'The NPR Politics Podcast',
+        '1A',
+        'TED Radio Hour',
+        'Hidden Brain',
+        'Fresh Air',
+        'Code Switch',
+        'Radiolab',
+        'Invisibilia',
+        'Freakonomics Radio',
+        'On the Media'
+)
 ## {{{ http://code.activestate.com/recipes/577305/ (r1)
-__STATES = {
-        'AK': 'Alaska',
-        'AL': 'Alabama',
-        'AR': 'Arkansas',
-        'AS': 'American Samoa',
-        'AZ': 'Arizona',
-        'CA': 'California',
-        'CO': 'Colorado',
-        'CT': 'Connecticut',
-        'DC': 'District of Columbia',
-        'DE': 'Delaware',
-        'FL': 'Florida',
-        'GA': 'Georgia',
-        'GU': 'Guam',
-        'HI': 'Hawaii',
-        'IA': 'Iowa',
-        'ID': 'Idaho',
-        'IL': 'Illinois',
-        'IN': 'Indiana',
-        'KS': 'Kansas',
-        'KY': 'Kentucky',
-        'LA': 'Louisiana',
-        'MA': 'Massachusetts',
-        'MD': 'Maryland',
-        'ME': 'Maine',
-        'MI': 'Michigan',
-        'MN': 'Minnesota',
-        'MO': 'Missouri',
-        'MP': 'Northern Mariana Islands',
-        'MS': 'Mississippi',
-        'MT': 'Montana',
-        'NA': 'National',
-        'NC': 'North Carolina',
-        'ND': 'North Dakota',
-        'NE': 'Nebraska',
-        'NH': 'New Hampshire',
-        'NJ': 'New Jersey',
-        'NM': 'New Mexico',
-        'NV': 'Nevada',
-        'NY': 'New York',
-        'OH': 'Ohio',
-        'OK': 'Oklahoma',
-        'OR': 'Oregon',
-        'PA': 'Pennsylvania',
-        'PR': 'Puerto Rico',
-        'RI': 'Rhode Island',
-        'SC': 'South Carolina',
-        'SD': 'South Dakota',
-        'TN': 'Tennessee',
-        'TX': 'Texas',
-        'UT': 'Utah',
-        'VA': 'Virginia',
-        'VI': 'Virgin Islands',
-        'VT': 'Vermont',
-        'WA': 'Washington',
-        'WI': 'Wisconsin',
-        'WV': 'West Virginia',
-        'WY': 'Wyoming'
-}
+_STATES = (
+        'Alaska',
+        'Alabama',
+        'Arkansas',
+        'American Samoa',
+        'Arizona',
+        'California',
+        'Colorado',
+        'Connecticut',
+        'District of Columbia',
+        'Delaware',
+        'Florida',
+        'Georgia',
+        'Guam',
+        'Hawaii',
+        'Iowa',
+        'Idaho',
+        'Illinois',
+        'Indiana',
+        'Kansas',
+        'Kentucky',
+        'Louisiana',
+        'Massachusetts',
+        'Maryland',
+        'Maine',
+        'Michigan',
+        'Minnesota',
+        'Missouri',
+        'Northern Mariana Islands',
+        'Mississippi',
+        'Montana',
+        'North Carolina',
+        'North Dakota',
+        'Nebraska',
+        'New Hampshire',
+        'New Jersey',
+        'New Mexico',
+        'Nevada',
+        'New York',
+        'Ohio',
+        'Oklahoma',
+        'Oregon',
+        'Pennsylvania',
+        'Puerto Rico',
+        'Rhode Island',
+        'South Carolina',
+        'South Dakota',
+        'Tennessee',
+        'Texas',
+        'Utah',
+        'Virginia',
+        'Virgin Islands',
+        'Vermont',
+        'Washington',
+        'Wisconsin',
+        'West Virginia',
+        'Wyoming'
+)    
 ## end of http://code.activestate.com/recipes/577305/ }}}
 
 def regexurl(url):
@@ -114,17 +136,32 @@ def readAuth(path):
         if "token" in config:
             return False
 
+def getpodcasts(podcasts):
+    podcast = unquote(podcasts)
+    xbmc.log("looking for: "+podcast,level=xbmc.LOGNOTICE)
+    search = npr.Search(podcast)
+    stories = search.response['items']
+    i = 0
+    for key in stories:
+        if len(stories[i]["items"]) > 0:
+            lst = [stories[i]["items"][0]['attributes']['title'],stories[i]["items"][0]['links']['audio'][0]['href']]
+            __podcastList__.append(lst)
+        else:
+            break
+        i = i+1
+
 def getstations(locations):
-    location = locations.replace('%20',' ')
+    location = unquote(locations)
+    xbmc.log("looking for: "+location,level=xbmc.LOGNOTICE)
     stations = npr.Stations(location)
     data = stations.a['station']
     streamlist = []
     for d in data:
         s = str(d)
         if d.get('mp3') is not None:
-             if d.get('name') is not None:
+            if d.get('name') is not None:
                 #work around for crappy kodi only using HTTP
-                _stationsList.append(d['name'])
+                __stationsList__.append(d['name'])
                 if "playerservices.streamtheworld.com/pls" in d['mp3']:
                     f = urllib2.urlopen(d['mp3'])
                     myfile = f.read()
@@ -135,73 +172,85 @@ def getstations(locations):
                         if "File" in url:
                             if ".com:443" in url:
                                 urls = url.replace(":443", "")
-                                _streamList.append(regexurl(urls))
+                                __streamList__.append(regexurl(urls))
                             else:
-                                _streamList.append(regexurl(urls))
+                                __streamList__.append(regexurl(urls))
                 else:
-                        _streamList.append(d['mp3'])
+                        __streamList__.append(d['mp3'])
+
+def buildMenu(pluginaddress, stationsList, F):
+    for k in stationsList: 
+        #combine the plugin URL router code and actual url in url encoded format
+        u =  pluginaddress + quote(str(k))
+        #display name of menu item
+        liz = xbmcgui.ListItem(k)
+        #build the menu 
+        xbmcplugin.addDirectoryItem(__handle__,
+                        url = u, listitem = liz,
+                        isFolder = F)
+    xbmcplugin.endOfDirectory(__handle__)
+
+def buildPodcastMenu(pluginaddress, podcastList):
+    for k in podcastList: 
+        #combine the plugin URL router code and actual url in url encoded format
+        u =  pluginaddress + quote(str(k[1]))
+        #display name of menu item
+        liz = xbmcgui.ListItem(k[0])
+        #build the menu 
+        xbmcplugin.addDirectoryItem(__handle__,
+                        url = u, listitem = liz)
+    xbmcplugin.endOfDirectory(__handle__)
 
 def main():
-    if "stream" in sys.argv[2]:
-        # Play it.%3a%2f%2f
-        http= sys.argv[2].split("?stream=",1)[1].replace('%2f','/')
-        httpc= http.replace('%3a',':')
-        print ("Playing stream %s" % httpc)
-        xbmc.Player().play(httpc)
-
-    elif "sid" in sys.argv[2]:
-        # Display all stations in the state
-        print("Station %s selected" % sys.argv[2])
-        getstations(sys.argv[2].split("?sid=",1)[1])
-        for k in _streamList:
-                u = _url + "?stream=" + str(k)
-                liz = xbmcgui.ListItem(k)
-                xbmcplugin.addDirectoryItem(_handle,
-                                  url = u, listitem = liz,
-                                  isFolder = True)
-        xbmcplugin.endOfDirectory(_handle)
-
-    elif "state" in sys.argv[2]:
-        # Display all stations in the state
-        print("State of %s selected" % sys.argv[2])
-        getstations(sys.argv[2].split("?state=",1)[1])
-        for k in _stationsList:
-                u = _url + "?sid=" + str(k)
-                liz = xbmcgui.ListItem(k)
-                xbmcplugin.addDirectoryItem(_handle,
-                                  url = u, listitem = liz,
-                                  isFolder = True)
-        xbmcplugin.endOfDirectory(_handle)
-
+    global __arg__
+    dialog = xbmcgui.Dialog()
+    xbmc.log("looking for argument 0 plugin name: "+__url__,level=xbmc.LOGNOTICE)
+    xbmc.log("looking for argument 1 handle: "+str(__handle__),level=xbmc.LOGNOTICE)
+    xbmc.log("looking for argument 2 program argument: "+__arg__,level=xbmc.LOGNOTICE)
+    if "?stream" in __arg__:
+        url = unquote(__arg__.split("?stream=",1)[1])
+        xbmc.log("opening url: "+url,level=xbmc.LOGNOTICE)
+        xbmc.Player().play(url)
+        #xbmc.executebuiltin('ShowPicture("{0}")'.format(__addondir__+"\icon.png"))
+    elif "?stations" in __arg__:
+        getstations(__arg__.split("?stations=",1)[1])
+        buildMenu(__url__+"?sid=",__stationsList__,True)
+    elif "?pstations" in __arg__:
+        getpodcasts(__arg__.split("?pstations=",1)[1])
+        buildPodcastMenu(__url__+"?stream=",__podcastList__)
+    elif "?sid" in __arg__:
+        getstations(__arg__.split("?sid=",1)[1])
+        buildMenu(__url__+"?stream=",__streamList__,False)
+    elif "?mainmenu" in __arg__:
+        if "Live%20Radio" in __arg__:
+            buildMenu(__url__+"?stations=",_STATES,True)
+        elif "Podcasts" in __arg__:
+            buildMenu(__url__+"?pstations=",_SAVEDPODCASTS,True)
     else:
-        dialog = xbmcgui.Dialog()
         try:
-                data = ""
-                configfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'npr.conf')
+            data = ""
+            configfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'npr.conf')
+            if os.path.exists(configfile):
                 with open(configfile, 'r') as file:
-                        data = file.read().replace('\n', '')
-                if 'token' in data:
-                        # Set plugin category. It is displayed in some skins as the name
-                        # of the current section.
-                        xbmcplugin.setPluginCategory(_handle, 'NPR')
-                        # Set plugin content. It allows Kodi to select appropriate views
-                        # for this type of content.
-                        xbmcplugin.setContent(_handle, 'Music')
-                        for key, value in __STATES.items():
-                                u = _url + "?state=" +value
-                                liz = xbmcgui.ListItem(value)
-                                xbmcplugin.addDirectoryItem(_handle,
-                                          url = u, listitem = liz,
-                                          isFolder = True)
-                        xbmcplugin.endOfDirectory(_handle)
-                else:
-                        npr.auth()
-                        npr.login()
-                        dialog.ok("NPR One", "All Done now relaunch the addon.")
-        except:
+                    xbmc.log("looking for token...",level=xbmc.LOGNOTICE)
+                    data = file.read().replace('\n', '')
+            else:
+                npr.auth()
+            if 'token' in data:
+                xbmc.log("token found...",level=xbmc.LOGNOTICE)
+                try:
+                    buildMenu(__url__+"?mainmenu=",_MAINMENU,True)
+                except Exception, e:
+                    xbmc.log(str(e),level=xbmc.LOGNOTICE)
+                    dialog.ok("NPR One", "failed to build menu. ")
+            else:
+                dialog.ok("NPR One", "If this is your first time running this app please open the addon configuration and set id and secret under general")
+                xbmc.log("starting auth",level=xbmc.LOGNOTICE)
                 npr.auth()
                 npr.login()
                 dialog.ok("NPR One", "All Done now relaunch the addon.")
+        except Exception, ex:
+            xbmc.log(str(ex),level=xbmc.LOGNOTICE)
+            dialog.ok("NPR One", "failed. "+str(ex))
 
-# Enter here.
 main()

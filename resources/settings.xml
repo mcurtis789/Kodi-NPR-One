@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="General">
+		<setting label="Application ID" type="text"   id="appid" default="your-app-id"/>
+		<setting label="Key" type="text"   id="key" default="your-secret-key"/>        
+    </category>
+</settings>
